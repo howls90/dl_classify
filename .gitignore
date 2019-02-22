@@ -9,4 +9,4 @@
 /val/
 /include/
 pip-selfcheck.json
-weights.h5
+*.h5

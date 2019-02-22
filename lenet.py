@@ -3,7 +3,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from keras.utils import to_categorical
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, Flatten, MaxPooling2D, Dropout
+from keras.layers import Dense, Conv2D, Flatten, MaxPooling2D, Dropout, Lambda
 from keras.optimizers import Adam
 import numpy as np
 from keras.preprocessing import image
@@ -18,6 +18,8 @@ import argparse
 import random
 import urllib
 import os
+import keras
+import keras_resnet.models
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 target = 'target.png'
@@ -38,23 +40,20 @@ validation_samples = background_num * validation_create
 # Hyperparameter
 img_width = 28
 img_height = 28
-targ_width = 14
-targ_height = 14
+targ_width = 18
+targ_height = 18
 EPOCHS = 25
 BATCH_SIZE = 32
-LR = 1e-3
+LR = 1e-4
 BIAS = tf.constant_initializer(0.01)
 
 if not os.path.exists(TRAIN_DIR):
-    os.rmdir( TRAIN_DIR )
     os.makedirs(TRAIN_DIR)
 
 if not os.path.exists(TEST_DIR):
-    os.rmdir( TEST_DIR )
     os.makedirs(TEST_DIR)
 
 if not os.path.exists(VAL_DIR):
-    os.rmdir( VAL_DIR )
     os.makedirs(VAL_DIR)
 
 class CNN():
@@ -73,7 +72,11 @@ class CNN():
         """
         Create background with noise
         """
-        for i in range(0,background_num):
+        # os.rmdir( TRAIN_DIR )
+        # os.rmdir( TEST_DIR )
+        # os.rmdir( VAL_DIR )
+
+        for i in range(1,background_num+1):
             background = np.random.random((img_width,img_height))
             plt.imsave(NEG_DIR+"/background.png", background)
             targ = Image.open(target)
@@ -110,6 +113,11 @@ class CNN():
         self.X_test, self.y_test = self.prepare_data(X_test)
         self.X_val, self.y_val = self.prepare_data(X_val)
 
+        self.y_train = to_categorical(self.y_train, num_classes=2)
+        self.y_test = to_categorical(self.y_test, num_classes=2)
+        self.y_val = to_categorical(self.y_val, num_classes=2)
+
+
     def create_images(self):
         """
         Create Images from target 
@@ -121,8 +129,8 @@ class CNN():
                 width_shift_range=0.2,
                 height_shift_range=0.2,
                 rescale = 1./255,
-                shear_range=40,
-                zoom_range=[1,3.5],
+                # shear_range=40,
+                # zoom_range=[1,3.5],
                 horizontal_flip=True,
                 vertical_flip=True,
                 fill_mode='nearest')
@@ -164,61 +172,75 @@ class CNN():
         y = [] # labels
 
         for image in positives:
-            _img = cv2.resize(cv2.imread(image), (img_width,img_height), interpolation=cv2.INTER_CUBIC)
+            _img = cv2.resize(cv2.imread(image, 0), (img_width,img_height), interpolation=cv2.INTER_CUBIC)
             normalizedImg = np.zeros((img_width, img_height))
-            normalizedImg = cv2.normalize(_img,  normalizedImg, 0, 255, cv2.NORM_MINMAX)
+            _img = cv2.normalize(_img, normalizedImg, 0, 255, cv2.NORM_MINMAX)
+            _img = np.array(_img)
+            _img = _img[..., np.newaxis]
+            
             x.append(_img)
-                
+
             if image.split('/')[0] == TRAIN_DIR:
-                y.append([1,0])
+                y.append(1)
             elif image.split('/')[0] == NEG_DIR:
-                y.append([0,1])
+                y.append(0)
             elif image.split('/')[0] == TEST_DIR:
-                y.append([1,0])
+                y.append(1)
             elif image.split('/')[0] == VAL_DIR:
-                y.append([1,0])
+                y.append(1)
 
         x = np.array(x)
         y = np.array(y)
         return x, y
 
-    def load_model(self):
+    def lenet(self):
         """
         Model definition
         """
         self.model = Sequential()
-        self.model.add(Conv2D(32, kernel_size=3, activation='relu', input_shape=(img_width, img_height, 3)))
-        self.model.add(MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(Dropout(0.5))
+        self.model.add(Conv2D(32, kernel_size=3, activation='relu'))
+        # self.model.add(MaxPooling2D(pool_size=(2, 2)))
+        # self.model.add(Dropout(0.5))
 
         self.model.add(Conv2D(32, kernel_size=3, activation='relu'))
         self.model.add(MaxPooling2D(pool_size=(2, 2)))
-        self.model.add(Dropout(0.5))
+        self.model.add(Dropout(0.25))
         
         self.model.add(Conv2D(64, kernel_size=3, activation='relu'))
         # self.model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
         # self.model.add(Dropout(0.25))
 
+        self.model.add(Conv2D(64, kernel_size=3, activation='relu'))
+        self.model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+        self.model.add(Dropout(0.25))
+
         self.model.add(Flatten())
-        self.model.add(Dense(128, activation='relu', kernel_initializer='random_uniform', bias_initializer=BIAS ))
+        self.model.add(Dense(512, activation='relu', kernel_initializer='random_uniform', bias_initializer=BIAS ))
         # self.model.add(Dropout(0.5))
         self.model.add(Dense(2, activation='softmax', kernel_initializer="random_uniform", bias_initializer=BIAS))
         opt = optimizer=Adam(lr=LR, decay=LR/EPOCHS)
         self.model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
 
-    def training(self):
+    def resnet(self):
+        shape, classes = (img_height, img_height, 1), 2
+        x = keras.layers.Input(shape)
+        opt = optimizer=Adam(lr=LR, decay=LR/EPOCHS)
+        self.model = keras_resnet.models.ResNet50(x, classes=classes)
+        self.model.compile(opt, "binary_crossentropy", ["accuracy"])
+
+    def training(self, name):
         """
         Train the nn
         """
         self.model.fit(self.X_train, self.y_train, validation_data=(self.X_test, self.y_test), epochs=EPOCHS, batch_size=BATCH_SIZE)
-        self.model.save_weights('weights.h5')
+        self.model.save_weights('lenet.h5')
 
 
-    def testing(self):
+    def testing(self, name):
         """
         Test acuracy of the nn
         """
-        self.model.load_weights('weights.h5')
+        self.model.load_weights(name+'.h5')
         predict = np.argmax(self.model.predict(self.X_val), axis=1)
         validation = np.argmax(self.y_val, axis=1)
         pos = 0
@@ -228,28 +250,40 @@ class CNN():
                 pos = pos+1
             else:
                 neg = neg+1
-        print('Positives: '+str(pos))
-        print('Negative: '+str(neg))
+        print('Correct: '+str(pos))
+        print('Failure: '+str(neg))
 
-    def predict(self, img):
+    def predict(self, img, weights):
         """
         Prediction
         """
         x = []
-        self.model.load_weights('weights.h5')
-        x.append(cv2.resize(cv2.imread(img), (img_width,img_height), interpolation=cv2.INTER_CUBIC))
+        self.model.load_weights(weights+'.h5')
+        _img = cv2.imread(img, 0)
+        output = _img.copy()
+        output = cv2.resize(output, (200, 200), interpolation=cv2.INTER_CUBIC)
+        _img = cv2.resize(_img, (img_width, img_height), interpolation=cv2.INTER_CUBIC)
+        _img = _img.astype("float") / 255.0
+        _img = img_to_array(_img)
+        x.append(_img)
         x = np.array(x)
-        if np.argmax(self.model.predict(x), axis=1)[0] == 0:
-            print('Yes')
-        else:
-            print('No')
-        plt.imshow(x[0])
-        plt.show()
+
+        (no, yes) = self.model.predict(x)[0]
+        label = "Yes" if yes > no else "No"
+        val = yes if yes > no else yes
+        label = "{}: {:.2f}%".format(label, val * 100)
+
+        cv2.putText(output, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.imshow("Output", output)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        cv2.waitKey(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Object classification.')
     parser.add_argument('--samples', help='train the cnn', action='store_true')
     parser.add_argument('--train', help='train the cnn', action='store_true')
+    parser.add_argument('--model', help='train the cnn')
     parser.add_argument('--test', help='test the cnn', action='store_true')
     parser.add_argument('--predict', help='predict if obj in img')
     args = parser.parse_args()
@@ -258,15 +292,31 @@ if __name__ == "__main__":
     
     if args.train:
         cnn.read_img()
-        cnn.load_model()
-        cnn.training()
+        if args.model == 'lenet':
+            cnn.lenet()
+        elif args.model == 'resnet':
+            cnn.resnet()
+        else:
+            print("model not found")
+        cnn.training(args.train)
     elif args.test:
         cnn.read_img()
-        cnn.load_model()
-        cnn.testing()
+        if args.model == 'lenet':
+            cnn.lenet()
+        elif args.model == 'resnet':
+            cnn.resnet()
+        else:
+            print("model not found")
+        cnn.testing(args.model)
     elif args.samples:
         cnn.create_images()
     elif args.predict:
         cnn.read_img()
-        cnn.load_model()
-        cnn.predict(args.predict)
+        if args.model == 'lenet':
+            cnn.lenet()
+        elif args.model == 'resnet':
+            cnn.resnet()
+        else:
+            print("model not found")
+        cnn.predict(args.predict, args.model)
+        
