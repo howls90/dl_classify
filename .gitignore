@@ -1,0 +1,12 @@
+/bin/
+/examples/
+/lib/
+/share/
+/neg/
+/targets/
+/test/
+/train/
+/val/
+/include/
+pip-selfcheck.json
+weights.h5
