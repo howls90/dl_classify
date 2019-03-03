@@ -2,11 +2,7 @@
 /examples/
 /lib/
 /share/
-/neg/
-/targets/
-/test/
-/train/
-/val/
+/images/
 /include/
 pip-selfcheck.json
 *.h5
