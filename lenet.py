@@ -5,7 +5,7 @@ from keras.layers.convolutional import MaxPooling2D
 from keras.layers.core import Activation
 from keras.layers.core import Flatten
 from keras.layers.core import Dense
-from keras.layers import Dropout
+from keras.layers import Dropout, BatchNormalization
 from keras import backend as K
 from glob import glob
 from PIL import Image,ImageEnhance
@@ -33,7 +33,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # initialize the number of epochs to train for, initial learning rate,
 # and batch size
-EPOCHS = 15
+EPOCHS = 5
 INIT_LR = 1e-3
 BS = 32
 shape = 28
@@ -62,16 +62,18 @@ class LeNet:
 
 		# first set of CONV => RELU => POOL layers
 		model.add(Conv2D(20, (5, 5), padding="same", input_shape=inputShape))
+		model.add(BatchNormalization())
 		model.add(Activation("relu"))
 		model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
 		# second set of CONV => RELU => POOL layers
 		model.add(Conv2D(50, (5, 5), padding="same"))
+		model.add(BatchNormalization())
 		model.add(Activation("relu"))
 		model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
 		model.add(Flatten())
-		model.add(Dense(170))
+		model.add(Dense(250))
 		model.add(Activation("relu"))
 		model.add(Dropout(0.5))
  
@@ -195,7 +197,7 @@ def samples():
 	Create background with noise
 	"""
 	j = 0
-	for filename in glob('images_change/not_ring/*'):
+	for filename in glob('images/not_ring/*'):
 	# for j in range(1,int(args['samples'])):
 		# filename = "images_change/not_ring/1_"+str(j)+".png"
 		# background = np.random.random((shape,shape))
@@ -218,7 +220,7 @@ def samples():
 		background.paste(targ,(0,random.randrange(shape-targ.size[1])), targ)
 		background = ImageEnhance.Brightness(background).enhance(random.uniform(0.8, 1))
 		background = ImageEnhance.Contrast(background).enhance(random.uniform(0.6, 1))
-		background.save('images_change/ring/'+str(j)+'.png', quality=95)
+		background.save('images/ring/'+str(j)+'.png', quality=95)
 		j += 1
 	print("Backgrounds created succesfully!!!")
 	# for j in range(1,10000):
