@@ -10,7 +10,7 @@ model = load_model('lenet.model')
 while 1:
     _, original = cap.read()
     ret, image = cap.read()
-    # image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     image = image.astype("float") / 255.0
     reshaped = cv2.resize(image, (shape, shape))

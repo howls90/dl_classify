@@ -33,7 +33,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # initialize the number of epochs to train for, initial learning rate,
 # and batch size
-EPOCHS = 5
+EPOCHS = 25
 INIT_LR = 1e-3
 BS = 32
 shape = 28
@@ -64,22 +64,30 @@ class LeNet:
 		model.add(Conv2D(20, (5, 5), padding="same", input_shape=inputShape))
 		model.add(BatchNormalization())
 		model.add(Activation("relu"))
-		model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+		model.add(MaxPooling2D(pool_size=(2, 2)))
 
 		# second set of CONV => RELU => POOL layers
 		model.add(Conv2D(50, (5, 5), padding="same"))
 		model.add(BatchNormalization())
 		model.add(Activation("relu"))
-		model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+		model.add(MaxPooling2D(pool_size=(2, 2)))
 
 		model.add(Flatten())
-		model.add(Dense(250))
+		model.add(Dense(500))
+		model.add(Activation("relu"))
+		model.add(Dropout(0.25))
+
+		# model.add(Dense(250))
+		# model.add(Activation("relu"))
+		# model.add(Dropout(0.3))
+
+		model.add(Dense(50))
 		model.add(Activation("relu"))
 		model.add(Dropout(0.5))
  
 		# softmax classifier
 		model.add(Dense(classes))
-		model.add(Activation("softmax"))
+		model.add(Activation("sigmoid"))
  
 		# return the constructed network architecture
 		return model
@@ -98,7 +106,7 @@ def train():
 	for imagePath in imagePaths:
 		# load the image, pre-process it, and store it in the data list
 		image = cv2.imread(imagePath)
-		# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 		image = cv2.resize(image, (shape, shape))
 		image = img_to_array(image)
 		data.append(image)
@@ -115,8 +123,8 @@ def train():
 	
 	# partition the data into training and testing splits using 75% of
 	# the data for training and the remaining 25% for testing
-	(trainX, testX, trainY, testY) = train_test_split(data,
-		labels, test_size=0.4, random_state=50)
+	(trainX, testX, trainY, testY) = train_test_split(data[:2000],
+		labels[:2000], test_size=0.25, random_state=50)
 	
 	# convert the labels from integers to vectors
 	trainY = to_categorical(trainY, num_classes=2)
@@ -131,7 +139,7 @@ def train():
 
 	# initialize the model
 	print("[INFO] compiling model...")
-	model = LeNet.build(width=shape, height=shape, depth=3, classes=2)
+	model = LeNet.build(width=shape, height=shape, depth=1, classes=2)
 	opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
 	model.compile(loss="binary_crossentropy", optimizer=opt,
 		metrics=["accuracy"])
@@ -205,10 +213,10 @@ def samples():
 
 		targ = Image.open(target)
 		targ = targ.rotate(random.randrange(-45, 45))
-		targ.thumbnail((shape, shape), Image.ANTIALIAS)
+		# targ.thumbnail((shape-10 shape-10), Image.ANTIALIAS)
 
 		width, height = targ.size
-		m = random.uniform(-0.5, 0.5)
+		m = random.uniform(-0.2, 0.2)
 		xshift = abs(m) * width
 		new_width = width + int(round(xshift))
 		targ = targ.transform((new_width, height), Image.AFFINE,
@@ -216,7 +224,7 @@ def samples():
 
 		background = Image.open(filename)
 		background.thumbnail((shape, shape), Image.ANTIALIAS)
-
+		print(targ.size)
 		background.paste(targ,(0,random.randrange(shape-targ.size[1])), targ)
 		background = ImageEnhance.Brightness(background).enhance(random.uniform(0.8, 1))
 		background = ImageEnhance.Contrast(background).enhance(random.uniform(0.6, 1))
